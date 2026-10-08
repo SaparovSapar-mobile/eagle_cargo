@@ -1,0 +1,14 @@
+// ignore_for_file: constant_identifier_names
+
+enum PreferenceKeys{
+  IS_FIRST_APP,
+  APP_LANGUAGE,
+  USER_FULLNAME,
+  USER_PHONE,
+  USER_MAIL,
+  USER_TOKEN,
+  IS_DARK,
+  TOPICS, TRANSLATIONS_CACHE,
+  SMS_CONSENT_REQUESTED,
+  SEEN_WARNINGS
+}

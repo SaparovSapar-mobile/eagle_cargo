@@ -1,0 +1,4 @@
+# melos_managed_dependency_overrides: kargoo_core
+dependency_overrides:
+  kargoo_core:
+    path: ../../packages/kargoo_core

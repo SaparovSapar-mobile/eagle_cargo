@@ -1,0 +1,184 @@
+workflows:
+  # =========================
+  # Workflow 1: Firebase Ad Hoc
+  # =========================
+  ios-firebase:
+    name: iOS → Firebase App Distribution
+    instance_type: mac_mini_m2
+    max_build_duration: 30
+
+    environment:
+      flutter: stable
+      xcode: latest
+
+      groups:
+        - firebase_credentials
+      vars:
+        IOS_APP_ID: "1:105690325627:ios:8feb6d4f563d2477b5f8de"
+
+      ios_signing:
+        distribution_type: ad_hoc
+        certificates:
+          - iphone_dist_cert
+        provisioning_profiles:
+          - yb_adhoc_provp
+
+    scripts:
+      - name: Flutter dependencies
+        script: flutter pub get
+
+      - name: Inject local network permissions (Firebase only)
+        script: |
+          PLIST=ios/Runner/Info.plist
+          /usr/libexec/PlistBuddy -c "Add :NSLocalNetworkUsageDescription string 'This app may access the local network to support device connectivity.'" "$PLIST" || true
+          /usr/libexec/PlistBuddy -c "Add :NSBonjourServices array" "$PLIST" || true
+          /usr/libexec/PlistBuddy -c "Add :NSBonjourServices:0 string _dartVmService._tcp" "$PLIST" || true
+
+      - name: Apply provisioning profiles
+        script: xcode-project use-profiles
+
+      - name: Build IPA for (Ad Hoc)
+        script: |
+          flutter build ipa \
+            --release \
+            --export-options-plist=/Users/builder/export_options.plist
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+
+    publishing:
+      firebase:
+        firebase_service_account: $FIREBASE_SERVICE_ACCOUNT
+        ios:
+          app_id: $IOS_APP_ID
+          groups:
+            - ios-testers
+
+  # =========================
+  # Workflow 2: App Store Connect Production
+  # =========================
+  ios-appstore:
+    name: iOS → App Store Connect
+    instance_type: mac_mini_m2
+    max_build_duration: 30
+
+    environment:
+      flutter: stable
+      xcode: latest
+
+      ios_signing:
+        distribution_type: app_store
+        certificates:
+          - iphone_dist_cert
+        provisioning_profiles:
+          - yb_dist_provp
+
+    scripts:
+      - name: Flutter dependencies
+        script: flutter pub get
+
+      - name: Apply provisioning profiles
+        script: xcode-project use-profiles
+
+      - name: Build IPA (App Store)
+        script: |
+          flutter build ipa \
+            --release \
+            --export-options-plist=/Users/builder/export_options.plist
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+
+    publishing:
+      app_store_connect:
+        auth: integration
+    integrations:
+      app_store_connect: ASC api
+  # =========================
+  # Workflow 3: Firebase Android Distribution
+  # =========================
+  android-firebase:
+    name: Android → Firebase App Distribution
+    max_build_duration: 30
+    instance_type: mac_mini_m2
+    environment:
+      flutter: stable
+      xcode: latest
+      vars:
+        ANDROID_APP_ID: "1:105690325627:android:3f53b0544763da6eb5f8de"
+      groups:
+        - firebase_credentials
+        - google_credentials
+    scripts:
+      # - name: Manipulate build.gradle.kts
+      #   script: |
+      #     grep -q "compileSdk =" android/app/build.gradle.kts && \
+      #     sed -i '' 's/^ *compileSdk *= *.*/    compileSdk = flutter.compileSdkVersion/' android/app/build.gradle.kts
+
+      #     grep -q "ndkVersion =" android/app/build.gradle.kts && \
+      #     sed -i '' 's/^ *ndkVersion *= *.*/    ndkVersion = flutter.ndkVersion/' android/app/build.gradle.kts
+      - name: Setup keystore
+        script: |
+          echo $KEYSTORE_FILE | base64 --decode > /tmp/upload-keystore.jks
+          cat >> "$CM_BUILD_DIR/android/key.properties" << EOF
+          storePassword=$KEYSTORE_PASSWORD
+          keyPassword=$KEYSTORE_KEY_PASSWORD
+          keyAlias=upload
+          storeFile=/tmp/upload-keystore.jks
+      - name: Get flutter packages
+        script: |
+          cd $CM_BUILD_DIR
+          flutter pub get
+      - name: Build APK
+        script: flutter build apk --split-per-abi
+    artifacts:
+      - build/**/outputs/flutter-apk/**/*.apk
+    publishing:
+      firebase:
+        firebase_service_account: $FIREBASE_SERVICE_ACCOUNT
+        android:
+          app_id: $ANDROID_APP_ID
+          groups:
+            - androidtesters
+  # =========================
+  # Workflow 4: Android Play Store Deployment
+  # =========================
+  android-play-store:
+    name: Android → Play Store Console
+    max_build_duration: 30
+    instance_type: mac_mini_m2
+    environment:
+      groups:
+        - google_credentials
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+    scripts:
+      # - name: Manipulate build.gradle.kts
+      #   script: |
+      #     grep -q "compileSdk =" android/app/build.gradle.kts && \
+      #     sed -i '' 's/^ *compileSdk *= *.*/    compileSdk = flutter.compileSdkVersion/' android/app/build.gradle.kts
+
+      #     grep -q "ndkVersion =" android/app/build.gradle.kts && \
+      #     sed -i '' 's/^ *ndkVersion *= *.*/    ndkVersion = flutter.ndkVersion/' android/app/build.gradle.kts
+      - name: Setup keystore
+        script: |
+          echo $KEYSTORE_FILE | base64 --decode > /tmp/upload-keystore.jks
+          cat >> "$CM_BUILD_DIR/android/key.properties" << EOF
+          storePassword=$KEYSTORE_PASSWORD
+          keyPassword=$KEYSTORE_KEY_PASSWORD
+          keyAlias=upload
+          storeFile=/tmp/upload-keystore.jks
+      - name: Get flutter packages
+        script: |
+          cd $CM_BUILD_DIR
+          flutter pub get
+      - name: Build AppBundle
+        script: flutter build appbundle
+    artifacts:
+      - build/**/outputs/bundle/**/*.aab
+    publishing:
+      google_play:
+        credentials: $GOOGLE_PLAY_SERVICE_ACCOUNT
+        track: production
+        submit_as_draft: true
