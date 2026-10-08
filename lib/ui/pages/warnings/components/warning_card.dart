@@ -3,6 +3,7 @@ import 'package:kargoo_core/kargoo_core.dart'
     hide Palette, PreferenceManager, PreferenceKeys;
 
 import 'package:eagle_cargo/core/api/models/warning_model.dart';
+import 'package:eagle_cargo/core/utils/local_translations.dart';
 import 'package:eagle_cargo/core/utils/palette.dart';
 import 'package:eagle_cargo/core/utils/utc_format_extenstion.dart';
 import 'package:eagle_cargo/ui/components/warning_html_content.dart';
@@ -11,7 +12,10 @@ import 'package:eagle_cargo/ui/pages/warnings/warning_detail_page.dart';
 class WarningCard extends StatelessWidget {
   final WarningModel warning;
 
-  const WarningCard({super.key, required this.warning});
+  /// Shows the "Accepted" mark — only meaningful for `accept` warnings.
+  final bool accepted;
+
+  const WarningCard({super.key, required this.warning, this.accepted = false});
 
   @override
   Widget build(BuildContext context) {
@@ -54,12 +58,51 @@ class WarningCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: .start,
                 children: [
-                  Text(
-                    warning.title ?? '',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 15,
-                    ),
+                  Row(
+                    crossAxisAlignment: .start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          warning.title ?? '',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ),
+                      if (accepted) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.green.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            mainAxisSize: .min,
+                            children: [
+                              const Icon(
+                                Icons.check_rounded,
+                                size: 14,
+                                color: Colors.green,
+                              ),
+                              const SizedBox(width: 3),
+                              Text(
+                                context.tl('mb_warning_accepted'),
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.green,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   const SizedBox(height: 4),
                   Text(

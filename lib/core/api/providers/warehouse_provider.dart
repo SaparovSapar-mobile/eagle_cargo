@@ -32,6 +32,11 @@ class WarehouseProvider extends ChangeNotifier {
   List<WarehouseModel> get foreignWarehouses => _foreign.items;
   int get foreignTotal => _foreign.total;
 
+  /// `null` until the first check; the profile hides the foreign section
+  /// unless this is `true`.
+  bool? _hasForeign;
+  bool get hasForeign => _hasForeign ?? false;
+
   PaymentInfoResponse? _paymentInfoResponse;
   PaymentInfoResponse? get paymentInfoResponse => _paymentInfoResponse;
 
@@ -57,10 +62,27 @@ class WarehouseProvider extends ChangeNotifier {
   Future<void>? getForeign({Function? onSuccess, Function? onError}) {
     return _fetch(
       _foreign,
-      () => WarehouseService.getForeign(limit: _limit, page: _foreign.page),
+      () => WarehouseService.getAll(
+        limit: _limit,
+        page: _foreign.page,
+        isForeign: true,
+      ),
       onSuccess: onSuccess,
       onError: onError,
     );
+  }
+
+  /// On failure the last known value is kept, so a flaky network does not
+  /// make the section blink in and out.
+  Future<void> checkForeign() async {
+    try {
+      final value = await WarehouseService.hasForeign();
+      if (value == _hasForeign) return;
+      _hasForeign = value;
+      notifyListeners();
+    } catch (err) {
+      debugPrint("$err");
+    }
   }
 
   Future<void>? _fetch(
