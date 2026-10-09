@@ -490,7 +490,7 @@ packages:
   kargoo_core:
     dependency: "direct main"
     description:
-      path: "../../packages/kargoo_core"
+      path: "packages/kargoo_core"
       relative: true
     source: path
     version: "0.0.1"
