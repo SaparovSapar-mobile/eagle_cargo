@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:eagle_cargo/core/api/providers/auth_provider.dart';
+import 'package:eagle_cargo/core/api/providers/warning_provider.dart';
 import 'login_page.dart';
 import 'package:kargoo_core/kargoo_core.dart'
     hide Palette, PreferenceManager, PreferenceKeys;
@@ -14,6 +15,15 @@ abstract class LoginViewModel extends State<LoginPage>{
   final List<String> prefixes = ["+993", "+86"];
 
   int get maxPhoneLength => selectedPrefix == "+993" ? 8 : 11;
+
+  @override
+  void initState() {
+    super.initState();
+    // Launch warnings do not depend on being signed in.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<WarningProvider>().showPendingWarnings(context);
+    });
+  }
 
   @override
   void dispose() {

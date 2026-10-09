@@ -9,6 +9,9 @@ import '../services/warning_service.dart';
 import '../../../ui/components/warning_dialog.dart';
 
 class WarningProvider extends ChangeNotifier {
+  /// Past this the launch request is dropped until the next app start.
+  static const _startupTimeout = Duration(seconds: 5);
+
   final List<WarningModel> _warnings = [];
   List<WarningModel> get warnings => _warnings;
 
@@ -18,7 +21,11 @@ class WarningProvider extends ChangeNotifier {
   bool _hasError = false;
   bool get hasError => _hasError;
 
-  /// Guard so the launch popups are only attempted once per app session.
+  /// Launch request, started from the splash so it runs alongside the rest of
+  /// the startup work.
+  Future<List<WarningModel>?>? _startupFetch;
+
+  /// Guard so the launch dialog is only attempted once per app session.
   bool _startupShown = false;
 
   List<WarningModel> get acceptWarnings =>
@@ -27,53 +34,49 @@ class WarningProvider extends ChangeNotifier {
   List<WarningModel> get infoWarnings =>
       _warnings.where((e) => e.type == WarningType.info).toList();
 
-  /// `warning_guid -> updated_dt` of everything the client already confirmed.
-  /// The server does not track this, so it lives on the device.
-  Map<String, String> _readSeen() {
+  /// `warning_guid -> updated_dt` of every `accept` warning the client
+  /// confirmed. The server does not track this, so it lives on the device.
+  Map<String, String> _readAccepted() {
     final raw = PreferenceManager.instance.getStringValue(
-      PreferenceKeys.SEEN_WARNINGS,
+      PreferenceKeys.ACCEPTED_WARNINGS,
     );
     if (raw.isEmpty) return {};
     try {
       final decoded = jsonDecode(raw) as Map<String, dynamic>;
       return decoded.map((k, v) => MapEntry(k, "$v"));
     } catch (e) {
-      debugPrint("Broken seen-warnings cache: $e");
+      debugPrint("Broken accepted-warnings cache: $e");
       return {};
     }
   }
 
-  Future<void> _writeSeen(Map<String, String> seen) async {
-    await PreferenceManager.instance.setStringValue(
-      PreferenceKeys.SEEN_WARNINGS,
-      jsonEncode(seen),
-    );
+  /// Accepted only while the text is the one the client agreed to — an edit
+  /// in the web panel bumps `updated_dt` and asks for consent again.
+  bool isAccepted(WarningModel warning) {
+    final guid = warning.warningGuid;
+    if (guid == null) return false;
+    return _readAccepted()[guid] == (warning.updatedDt ?? '');
   }
 
-  /// New warnings, plus the ones whose text changed since the client saw them.
-  List<WarningModel> get pending {
-    final seen = _readSeen();
-    return _warnings.where((w) {
-      final guid = w.warningGuid;
-      if (guid == null) return false;
-      if (!seen.containsKey(guid)) return true;
-      return seen[guid] != (w.updatedDt ?? '');
-    }).toList();
-  }
-
-  Future<void> markSeen(WarningModel warning) async {
+  /// Stored right away, so a client who quits halfway through only sees the
+  /// remaining warnings on the next launch.
+  Future<void> accept(WarningModel warning) async {
     final guid = warning.warningGuid;
     if (guid == null) return;
-    final seen = _readSeen();
-    seen[guid] = warning.updatedDt ?? '';
-    await _writeSeen(seen);
+    final accepted = _readAccepted();
+    accepted[guid] = warning.updatedDt ?? '';
+    await PreferenceManager.instance.setStringValue(
+      PreferenceKeys.ACCEPTED_WARNINGS,
+      jsonEncode(accepted),
+    );
+    notifyListeners();
   }
 
-  Future<void> getAll({bool silent = false}) async {
+  Future<void> getAll() async {
     if (_isLoading) return;
     _isLoading = true;
     _hasError = false;
-    if (!silent) notifyListeners();
+    notifyListeners();
     try {
       final list = await WarningService.getAll();
       _warnings
@@ -88,26 +91,43 @@ class WarningProvider extends ChangeNotifier {
     }
   }
 
-  /// Shows the warnings the client has not confirmed yet, one after another.
+  /// Starts loading the launch warnings without waiting for them.
+  ///
+  /// Resolves to `null` on any failure or after [_startupTimeout]; the
+  /// warnings then simply wait for the next launch.
+  void prefetchStartupWarnings() {
+    _startupFetch ??= WarningService.getAll(type: WarningType.accept.name)
+        .timeout(_startupTimeout)
+        .then<List<WarningModel>?>((list) => list)
+        .catchError((e) {
+          debugPrint("Startup warnings skipped: $e");
+          return null;
+        });
+  }
+
+  /// Shows the `accept` warnings the client has not confirmed yet, one after
+  /// another, in a dialog that can only be left by accepting them all.
   ///
   /// A failing request must never block the app: nothing is shown and nothing
-  /// is stored, so the warnings simply reappear on the next launch.
+  /// is stored.
   Future<void> showPendingWarnings(BuildContext context) async {
     if (_startupShown) return;
     _startupShown = true;
 
-    await getAll(silent: true);
-    if (_hasError) return;
+    prefetchStartupWarnings();
+    final list = await _startupFetch;
+    if (list == null) return;
 
-    for (final warning in pending) {
-      if (!context.mounted) return;
-      await showDialog(
-        context: context,
-        // `accept` warnings may only be dismissed through their button.
-        barrierDismissible: !warning.mustAccept,
-        builder: (_) => WarningDialog(warning: warning),
-      );
-      await markSeen(warning);
-    }
+    // `info` warnings never block — they live in the profile section only.
+    final pending = list
+        .where((w) => w.mustAccept && w.warningGuid != null && !isAccepted(w))
+        .toList();
+    if (pending.isEmpty || !context.mounted) return;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => WarningDialog(warnings: pending, onAccept: accept),
+    );
   }
 }

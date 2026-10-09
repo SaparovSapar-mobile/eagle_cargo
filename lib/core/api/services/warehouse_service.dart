@@ -7,52 +7,49 @@ import 'package:kargoo_core/kargoo_core.dart' hide Palette, PreferenceManager, P
 import '../models/payment_info_response.dart';
 
 class WarehouseService {
-  /// Local warehouses of the firm.
+  /// Warehouses of the firm, filtered by the `is_foreign` flag.
   ///
-  /// [isForeign] filters by the `is_foreign` flag: `false` keeps the regular
-  /// list free of the foreign warehouses that now have their own section,
-  /// `null` returns everything (legacy behaviour).
-  static Future<Map<String, dynamic>> getAll({
-    int limit = 20,
-    int page = 1,
-    bool? isForeign,
-    Map<String, String> params = const {},
-  }) async {
-    final json = await BaseClient.get(
-      API.host,
-      API.warehouses.replaceAll('{firmGuid}', API.firmGuid),
-      headers: API.headers,
-      query: {
-        "limit": "$limit",
-        "page": "$page",
-        "status": 'true',
-        // The backend only understands the literal strings "true"/"false".
-        if (isForeign != null) "is_foreign": isForeign ? 'true' : 'false',
-        ...params,
-      },
-    );
-    return _parseList(json);
-  }
-
-  /// Warehouses abroad, served by the newer core endpoint.
+  /// The regular section asks for `false` and the foreign one for `true`, so
+  /// a warehouse never shows up in both.
   ///
   /// That list response is trimmed (guid, code, name, is_foreign, location),
   /// so each entry is completed from the detail endpoint — the card needs the
   /// address and phone to be of any use.
-  static Future<Map<String, dynamic>> getForeign({
+  static Future<Map<String, dynamic>> getAll({
     int limit = 20,
     int page = 1,
+    required bool isForeign,
+  }) async {
+    final parsed = await _getList(limit: limit, page: page, isForeign: isForeign);
+    final items = parsed['data'] as List<WarehouseModel>;
+    await Future.wait(items.map(_fillFromDetail));
+    return parsed;
+  }
+
+  /// Whether the firm has any foreign warehouse — decides if the profile
+  /// shows the section at all. Skips the detail enrichment.
+  static Future<bool> hasForeign() async {
+    final parsed = await _getList(limit: 1, page: 1, isForeign: true);
+    return (parsed['data'] as List).isNotEmpty;
+  }
+
+  static Future<Map<String, dynamic>> _getList({
+    required int limit,
+    required int page,
+    required bool isForeign,
   }) async {
     final json = await BaseClient.get(
       API.host,
       API.warehousesCore.replaceAll('{firmGuid}', API.firmGuid),
       headers: API.headers,
-      query: {"limit": "$limit", "page": "$page", "is_foreign": 'true'},
+      query: {
+        "limit": "$limit",
+        "page": "$page",
+        // The backend only understands the literal strings "true"/"false".
+        "is_foreign": isForeign ? 'true' : 'false',
+      },
     );
-    final parsed = _parseList(json);
-    final items = parsed['data'] as List<WarehouseModel>;
-    await Future.wait(items.map(_fillFromDetail));
-    return parsed;
+    return _parseList(json);
   }
 
   /// Best-effort enrichment: on failure the trimmed record is kept as is.

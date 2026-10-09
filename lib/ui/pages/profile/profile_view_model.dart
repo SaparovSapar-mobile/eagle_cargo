@@ -18,6 +18,7 @@ abstract class ProfileViewModel extends State<ProfilePage> with PageLifecycle {
   void initState() {
     super.initState();
     context.read<WarehouseProvider>().getPaymentInfo();
+    context.read<WarehouseProvider>().checkForeign();
     context.read<AuthProvider>().getProfile();
 
     scrollController.addListener(() {
@@ -51,6 +52,7 @@ abstract class ProfileViewModel extends State<ProfilePage> with PageLifecycle {
     debugPrint("Profile tab re-opened");
     context.read<AuthProvider>().getProfile();
     context.read<WarehouseProvider>().getPaymentInfo();
+    context.read<WarehouseProvider>().checkForeign();
     super.onPageVisible();
   }
 

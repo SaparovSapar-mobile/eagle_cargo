@@ -14,7 +14,7 @@ class WarehouseModel {
 
   /// Warehouses located abroad (China, Turkey, ...) are flagged by the firm
   /// admin; the backend defaults every legacy warehouse to `false`.
-  bool? isForeign;
+  bool isForeign = false;
   String? createdDt;
   LocationModel? location;
 
@@ -29,7 +29,7 @@ class WarehouseModel {
       this.longitude,
       this.phone,
       this.isActive,
-      this.isForeign,
+      this.isForeign = false,
       this.createdDt,
       this.location});
 

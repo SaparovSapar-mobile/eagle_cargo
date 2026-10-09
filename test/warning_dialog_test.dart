@@ -112,19 +112,34 @@ void main() {
     expect(find.textContaining('text-align', findRichText: true), findsNothing);
   });
 
-  testWidgets('accept warning cannot be dismissed without its button', (
-    tester,
+  /// Opens the launch dialog and records every accepted warning.
+  Future<List<String?>> openDialog(
+    WidgetTester tester,
+    List<WarningModel> warnings,
   ) async {
+    final accepted = <String?>[];
     await tester.pumpWidget(_host(const SizedBox()));
     final context = tester.element(find.byType(SizedBox));
 
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => WarningDialog(warning: _warning(type: 'accept')),
+      builder: (_) => WarningDialog(
+        warnings: warnings,
+        onAccept: (w) async => accepted.add(w.warningGuid),
+      ),
     );
     await tester.pumpAndSettle();
+    return accepted;
+  }
 
+  ElevatedButton acceptButton(WidgetTester tester) =>
+      tester.widget<ElevatedButton>(find.byType(ElevatedButton));
+
+  testWidgets('accept dialog cannot be dismissed without accepting', (
+    tester,
+  ) async {
+    final accepted = await openDialog(tester, [_warning(type: 'accept')]);
     expect(find.byType(WarningDialog), findsOneWidget);
 
     // Tapping outside the dialog keeps it open.
@@ -138,42 +153,107 @@ void main() {
     expect(popped, isTrue);
     expect(find.byType(WarningDialog), findsOneWidget);
 
-    // Only the button closes it.
+    // A short text fits without scrolling, so the button is enabled at once
+    // and is the only way out.
+    expect(acceptButton(tester).onPressed, isNotNull);
+    expect(find.text('Read to the end to accept'), findsNothing);
     await tester.tap(find.byType(ElevatedButton));
     await tester.pumpAndSettle();
     expect(find.byType(WarningDialog), findsNothing);
+    expect(accepted, ['guid-1']);
   });
 
-  test('pending keeps new and edited warnings only', () async {
+  testWidgets('accept stays disabled until the text is scrolled to the end', (
+    tester,
+  ) async {
+    final long = WarningModel.fromJson({
+      'warning_guid': 'long',
+      'title': 'Длинные условия',
+      'content': List.generate(80, (i) => '<p>Абзац $i</p>').join(),
+      'type': 'accept',
+      'level': 1,
+      'updated_dt': '2026-10-06T08:15:30.000Z',
+    });
+    final accepted = await openDialog(tester, [
+      long,
+      _warning(guid: 'short', type: 'accept'),
+    ]);
+
+    expect(find.text('1 of 2'), findsOneWidget);
+    expect(acceptButton(tester).onPressed, isNull);
+    expect(find.text('Read to the end to accept'), findsOneWidget);
+
+    // Halfway is not enough.
+    await tester.drag(find.byType(SingleChildScrollView), const Offset(0, -300));
+    await tester.pumpAndSettle();
+    expect(acceptButton(tester).onPressed, isNull);
+
+    await tester.fling(
+      find.byType(SingleChildScrollView),
+      const Offset(0, -20000),
+      5000,
+    );
+    await tester.pumpAndSettle();
+    expect(acceptButton(tester).onPressed, isNotNull);
+    expect(find.text('Read to the end to accept'), findsNothing);
+
+    // Saved right away, before the next warning is shown.
+    await tester.tap(find.byType(ElevatedButton));
+    await tester.pumpAndSettle();
+    expect(accepted, ['long']);
+    expect(find.text('2 of 2'), findsOneWidget);
+    expect(find.byType(WarningDialog), findsOneWidget);
+
+    await tester.tap(find.byType(ElevatedButton));
+    await tester.pumpAndSettle();
+    expect(accepted, ['long', 'short']);
+    expect(find.byType(WarningDialog), findsNothing);
+  });
+
+  test('accepted only while updated_dt matches the stored one', () async {
     final provider = WarningProvider();
-    final seen = _warning(guid: 'seen');
-    final edited = _warning(guid: 'edited');
-    final fresh = _warning(guid: 'fresh');
+    final accepted = _warning(guid: 'accepted', type: 'accept');
+    final edited = _warning(guid: 'edited', type: 'accept');
+    final fresh = _warning(guid: 'fresh', type: 'accept');
 
     await PreferenceManager.instance.setStringValue(
-      PreferenceKeys.SEEN_WARNINGS,
+      PreferenceKeys.ACCEPTED_WARNINGS,
       jsonEncode({
-        'seen': seen.updatedDt,
+        'accepted': accepted.updatedDt,
         'edited': '2026-01-01T00:00:00.000Z',
       }),
     );
-    provider.warnings.addAll([seen, edited, fresh]);
 
-    expect(
-      provider.pending.map((e) => e.warningGuid),
-      ['edited', 'fresh'],
+    expect(provider.isAccepted(accepted), isTrue);
+    expect(provider.isAccepted(edited), isFalse);
+    expect(provider.isAccepted(fresh), isFalse);
+
+    await provider.accept(edited);
+    expect(provider.isAccepted(edited), isTrue);
+    expect(provider.isAccepted(fresh), isFalse);
+
+    final stored = jsonDecode(
+      PreferenceManager.instance.getStringValue(
+        PreferenceKeys.ACCEPTED_WARNINGS,
+      ),
     );
-
-    await provider.markSeen(edited);
-    expect(provider.pending.map((e) => e.warningGuid), ['fresh']);
+    expect(stored, {
+      'accepted': accepted.updatedDt,
+      'edited': edited.updatedDt,
+    });
   });
 
-  testWidgets('warnings section splits the list by type', (tester) async {
+  testWidgets('warnings section groups by type and marks accepted ones', (
+    tester,
+  ) async {
+    final rules = _warning(guid: 'rules', type: 'accept');
     final provider = WarningProvider()
       ..warnings.addAll([
-        _warning(guid: 'rules', type: 'accept'),
+        rules,
+        _warning(guid: 'other-rules', type: 'accept'),
         _warning(guid: 'hours'),
       ]);
+    await provider.accept(rules);
 
     await tester.pumpWidget(
       MultiProvider(
@@ -187,24 +267,39 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // One card per tab: the `accept` one here, the `info` one after switching.
-    expect(find.byType(WarningCard), findsOneWidget);
-    await tester.tap(find.byType(Tab).last);
-    await tester.pumpAndSettle();
-    expect(find.byType(WarningCard), findsOneWidget);
+    expect(find.text('Rules and terms'), findsOneWidget);
+    expect(find.text('Information'), findsOneWidget);
+    expect(find.byType(WarningCard), findsNWidgets(3));
+    // Only the accepted `accept` warning carries the mark.
+    expect(find.text('Accepted'), findsOneWidget);
 
-    // Opening a card shows the full HTML text.
-    await tester.tap(find.byType(WarningCard));
+    // Opening a card shows the full HTML text, without an accept button.
+    await tester.tap(find.byType(WarningCard).first);
     await tester.pumpAndSettle();
     expect(
       find.textContaining('Уважаемые клиенты!', findRichText: true),
       findsOneWidget,
     );
+    expect(find.byType(ElevatedButton), findsNothing);
+  });
 
-    // The refresh request fails under the test binding, which raises an error
-    // toast; let its auto-close timer finish before the tree is disposed.
-    await tester.pump(const Duration(seconds: 6));
+  testWidgets('warnings section hides an empty group', (tester) async {
+    final provider = WarningProvider()..warnings.add(_warning(guid: 'hours'));
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider(create: (_) => core.ThemeProvider()),
+          ChangeNotifierProvider(create: (_) => core.TranslationProvider()),
+          ChangeNotifierProvider<WarningProvider>.value(value: provider),
+        ],
+        child: const MaterialApp(home: WarningsPage()),
+      ),
+    );
     await tester.pumpAndSettle();
+
+    expect(find.text('Rules and terms'), findsNothing);
+    expect(find.text('Information'), findsOneWidget);
   });
 
   test('htmlToPlainText strips tags and entities', () {

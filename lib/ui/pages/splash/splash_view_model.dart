@@ -72,6 +72,10 @@ abstract class SplashViewModel extends State<SplashPage>{
     if (!await hasInternet()) return;
 
     await _initRemoteConfig();
+    // Needs the host from remote config; runs alongside the login below and
+    // is shown by the first page the client lands on.
+    if (!mounted) return;
+    context.read<WarningProvider>().prefetchStartupWarnings();
     await _loginUser();
   }
 

@@ -111,20 +111,15 @@ class ProfilePageState extends ProfileViewModel {
               Navigator.pushNamed(context, Routes.warehouses);
             },
           ),
-          ProfileTile(
-            icon: Icons.public_rounded,
-            title: context.tl('mb_foreign_warehouses'),
-            onTap: () {
-              Navigator.pushNamed(context, Routes.foreignWarehouses);
-            },
-          ),
-          ProfileTile(
-            icon: Icons.warning_amber_rounded,
-            title: context.tl('mb_warnings'),
-            onTap: () {
-              Navigator.pushNamed(context, Routes.warnings);
-            },
-          ),
+          // Hidden entirely when the firm has no warehouse abroad.
+          if (context.watch<WarehouseProvider>().hasForeign)
+            ProfileTile(
+              icon: Icons.public_rounded,
+              title: context.tl('mb_foreign_warehouses'),
+              onTap: () {
+                Navigator.pushNamed(context, Routes.foreignWarehouses);
+              },
+            ),
           ProfileTile(
             icon: Icons.translate_rounded,
             title: context.t('language_settings'),
@@ -149,6 +144,13 @@ class ProfilePageState extends ProfileViewModel {
             ),
             onTap: () {
               themeProvider.toggleTheme();
+            },
+          ),
+          ProfileTile(
+            icon: Icons.warning_amber_rounded,
+            title: context.tl('mb_warnings'),
+            onTap: () {
+              Navigator.pushNamed(context, Routes.warnings);
             },
           ),
           if ((payment?.paymentData?.base?.alipayQr?.isNotEmpty ?? false) ||

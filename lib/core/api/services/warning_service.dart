@@ -7,8 +7,8 @@ import '../models/warning_model.dart';
 class WarningService {
   /// Public endpoint — no auth token needed.
   ///
-  /// [type] is left out on purpose by the callers: one request returns both
-  /// kinds and the app splits them locally.
+  /// Without [type] both kinds come back (the profile section splits them
+  /// locally); the launch dialog asks for `accept` only.
   static Future<List<WarningModel>> getAll({String? type}) async {
     final json = await BaseClient.get(
       API.host,
@@ -18,12 +18,10 @@ class WarningService {
     );
 
     if (json['success'] == true && json['data'] != null) {
-      final list = (json['data'] as List)
+      // Already ordered by `level` on the server — keep that order as is.
+      return (json['data'] as List)
           .map((e) => WarningModel.fromJson(e))
           .toList();
-      // The server already orders by level; keep it stable if that changes.
-      list.sort((a, b) => (a.level ?? 0).compareTo(b.level ?? 0));
-      return list;
     }
     return [];
   }
