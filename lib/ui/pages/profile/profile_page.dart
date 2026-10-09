@@ -33,38 +33,49 @@ class ProfilePageState extends ProfileViewModel {
     return Scaffold(
       body: isLoading
           ? CircularProgressIndicator.adaptive()
-          : CustomScrollView(
-              controller: scrollController,
-              slivers: [
-                // ============================
-                // EXPANDING HEADER → APPBAR
-                // ============================
-                SliverAppBar(
-                  expandedHeight: 220,
-                  pinned: true,
-                  backgroundColor: Palette.primary,
-                  title: AnimatedOpacity(
-                    duration: const Duration(milliseconds: 200),
-                    opacity: isCollapsed ? 1.0 : 0.0,
-                    child: Text(
-                      context.t('mb_profile'),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
+          : RefreshIndicator(
+              // Pull down to re-read the language list and dictionary, so a
+              // language the firm just enabled appears without a restart.
+              onRefresh: onRefresh,
+              color: Palette.primary,
+              child: CustomScrollView(
+                controller: scrollController,
+                // The content can be shorter than the viewport; without this the
+                // pull gesture never reaches the refresh indicator.
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  // ============================
+                  // EXPANDING HEADER → APPBAR
+                  // ============================
+                  SliverAppBar(
+                    expandedHeight: 220,
+                    pinned: true,
+                    backgroundColor: Palette.primary,
+                    title: AnimatedOpacity(
+                      duration: const Duration(milliseconds: 200),
+                      opacity: isCollapsed ? 1.0 : 0.0,
+                      child: Text(
+                        context.t('mb_profile'),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
+                    flexibleSpace: FlexibleSpaceBar(
+                      background: ProfileHeader(),
+                    ),
                   ),
-                  flexibleSpace: FlexibleSpaceBar(background: ProfileHeader()),
-                ),
 
-                // ============================
-                // CONTENT SECTION
-                // ============================
-                SliverToBoxAdapter(child: const SizedBox(height: 20)),
+                  // ============================
+                  // CONTENT SECTION
+                  // ============================
+                  SliverToBoxAdapter(child: const SizedBox(height: 20)),
 
-                SliverToBoxAdapter(child: _buildCardSection(context)),
-                SliverToBoxAdapter(child: SizedBox(height: 120)),
-              ],
+                  SliverToBoxAdapter(child: _buildCardSection(context)),
+                  SliverToBoxAdapter(child: SizedBox(height: 120)),
+                ],
+              ),
             ),
     );
   }

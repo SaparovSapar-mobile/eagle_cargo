@@ -66,6 +66,7 @@ class API {
   static const profile = '/api/v2/account/profile';
 
   static const translations = '/api/v1/translations';
+  static const translationLanguages = '/api/v1/translations/languages';
   static const locations = '/api/v1/locations';
   static const orders = '/api/v1/orders'; //Get all orders with pagination
   static const trackOrder =

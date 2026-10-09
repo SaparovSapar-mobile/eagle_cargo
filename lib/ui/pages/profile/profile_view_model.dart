@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:kargoo_core/core/extensions/translate_extension.dart';
 import 'package:provider/provider.dart';
+import 'package:eagle_cargo/core/api/api.dart';
 import 'package:eagle_cargo/core/api/providers/index.dart';
 import 'package:eagle_cargo/core/extensions/toaster_extension.dart';
 import 'package:eagle_cargo/core/routes/routes.dart';
@@ -51,6 +52,33 @@ abstract class ProfileViewModel extends State<ProfilePage> with PageLifecycle {
     context.read<AuthProvider>().getProfile();
     context.read<WarehouseProvider>().getPaymentInfo();
     super.onPageVisible();
+  }
+
+  /// Pull-to-refresh on the profile/settings page.
+  ///
+  /// Re-reads the language list and the dictionary from the server, so a
+  /// language the firm enables in the web panel shows up in the picker
+  /// without restarting the app, then refreshes the profile data above it.
+  Future<void> onRefresh() async {
+    final translations = context.read<TranslationProvider>();
+
+    await Future.wait([
+      translations.loadLanguages(
+        host: API.host,
+        path: API.translationLanguages,
+        firmGuid: API.firmGuid,
+      ),
+      translations.loadAllTranslations(
+        host: API.host,
+        path: API.translations,
+        firmGuid: API.firmGuid,
+        forceRefresh: true,
+      ),
+    ]);
+
+    if (!mounted) return;
+    context.read<AuthProvider>().getProfile();
+    context.read<WarehouseProvider>().getPaymentInfo();
   }
 
   void onError() {

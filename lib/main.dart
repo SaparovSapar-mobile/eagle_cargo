@@ -1,6 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:eagle_cargo/core/remote_config/index.dart';
 import 'package:eagle_cargo/core/routes/generator.dart';
 import 'package:eagle_cargo/core/routes/routes.dart';
@@ -46,18 +47,33 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
+    final translationProvider = context.watch<TranslationProvider>();
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       builder: (context, child) {
-        return Scaffold(
-          body: Column(
-            children: [
-              Expanded(child: child ?? const SizedBox()),
-              const NoNetworkWidget(),
-            ],
+        // Flip the whole UI for right-to-left languages (fa / ar / ur).
+        return Directionality(
+          textDirection: translationProvider.textDirection,
+          child: Scaffold(
+            body: Column(
+              children: [
+                Expanded(child: child ?? const SizedBox()),
+                const NoNetworkWidget(),
+              ],
+            ),
           ),
         );
       },
+      // Locale for the built-in widgets (date picker, system dialogs) only.
+      // A language Flutter has no Material strings for — `tk`, `tg` — resolves
+      // to its fallback instead, so those widgets never break.
+      locale: translationProvider.materialLocale,
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: core.kMaterialSupportedLanguageCodes.map(Locale.new),
       title: 'Eagle Cargo',
       themeMode: themeProvider.themeMode,
       theme: ThemeData(

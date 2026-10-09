@@ -29,6 +29,9 @@ const Map<String, Map<String, String>> _localTranslations = {
   },
 };
 
+/// Last link in the lookup chain, matching the translations contract.
+const String _lastResortLanguageCode = 'tk';
+
 extension LocalTranslateExtension on BuildContext {
   /// Translation with a bundled fallback (rebuilds when the language changes).
   String tl(String key) => _withFallback(key, t(key));
@@ -39,6 +42,18 @@ extension LocalTranslateExtension on BuildContext {
   String _withFallback(String key, String translated) {
     // TranslationProvider echoes the key back when it has no entry for it.
     if (translated != key) return translated;
-    return _localTranslations[key]?[langCode] ?? key;
+
+    final local = _localTranslations[key];
+    if (local == null) return key;
+
+    // These fallbacks are only written in the base languages, so a firm
+    // language (zh, uz, ...) has to walk the same chain the server uses:
+    // the language itself, then its fallback, then tk as the last resort.
+    // Without this the raw key would be shown on screen.
+    final fallback = translationProvider.fallbackOf(langCode);
+    return local[langCode] ??
+        (fallback == null ? null : local[fallback]) ??
+        local[_lastResortLanguageCode] ??
+        key;
   }
 }

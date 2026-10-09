@@ -110,6 +110,8 @@ abstract class SplashViewModel extends State<SplashPage>{
     await context.read<TranslationProvider>().initialize(
       host: API.host,
       path: API.translations,
+      languagesPath: API.translationLanguages,
+      firmGuid: API.firmGuid,
     );
 
     try {

@@ -4,11 +4,20 @@ import 'package:kargoo_core/kargoo_core.dart'
     hide Palette, PreferenceManager, PreferenceKeys;
 import 'package:eagle_cargo/core/utils/palette.dart';
 
+/// Language picker.
+///
+/// The list comes from `GET /api/v1/translations/languages` through
+/// [TranslationProvider] — base languages first, then the ones this firm has
+/// enabled, in the order the server sent them. Names are shown exactly as
+/// served (written in the language itself) and are never translated.
 class LanguagesBottomSheet extends StatelessWidget {
   const LanguagesBottomSheet({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final provider = context.watch<TranslationProvider>();
+    final languages = provider.languages;
+
     return SafeArea(
       child: Container(
         padding: EdgeInsets.only(top: 12),
@@ -30,39 +39,38 @@ class LanguagesBottomSheet extends StatelessWidget {
                 ),
               ),
             ),
-            ListTile(
-              leading: Text(
-                '🇹🇲',
-                style: Theme.of(context).textTheme.titleLarge,
+            if (languages.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: CircularProgressIndicator(),
+              )
+            else
+              // A firm can enable more languages than fit on screen, so the
+              // list scrolls inside the sheet instead of overflowing it.
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  padding: EdgeInsets.zero,
+                  itemCount: languages.length,
+                  itemBuilder: (context, index) {
+                    final language = languages[index];
+                    return ListTile(
+                      leading: Text(
+                        language.flag,
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      title: Text(language.name),
+                      trailing: language.code == provider.currentCode
+                          ? const Icon(Icons.check_rounded)
+                          : null,
+                      onTap: () {
+                        provider.setLanguageCode(language.code);
+                        Navigator.pop(context);
+                      },
+                    );
+                  },
+                ),
               ),
-              onTap: () {
-                context.read<TranslationProvider>().setLanguage(AppLanguage.tm);
-                Navigator.pop(context);
-              },
-              title: Text('Türkmençe'),
-            ),
-            ListTile(
-              leading: Text(
-                '🇷🇺',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              onTap: () {
-                context.read<TranslationProvider>().setLanguage(AppLanguage.ru);
-                Navigator.pop(context);
-              },
-              title: Text('Русский'),
-            ),
-            ListTile(
-              leading: Text(
-                '🇬🇧',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              onTap: () {
-                context.read<TranslationProvider>().setLanguage(AppLanguage.en);
-                Navigator.pop(context);
-              },
-              title: Text('English'),
-            ),
             SizedBox(height: kToolbarHeight / 2),
           ],
         ),
