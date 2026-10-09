@@ -1,7 +1,6 @@
 // lib/kargoo_core.dart
 
 // API Models
-export 'core/api/models/language_model.dart';
 export 'core/api/models/localized_text.dart';
 export 'core/api/models/translation_model.dart';
 export 'core/api/models/user_model.dart';

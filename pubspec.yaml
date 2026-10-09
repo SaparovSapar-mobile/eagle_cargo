@@ -32,7 +32,7 @@ dependencies:
   cached_network_image: ^3.4.1
   package_info_plus: ^9.0.0
   kargoo_core:
-    path: ../../packages/kargoo_core
+    path: packages/kargoo_core
   mobile_scanner: ^7.2.0
   toastification: ^3.1.0
   smart_auth: ^3.2.0

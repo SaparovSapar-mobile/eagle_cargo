@@ -48,3 +48,5 @@ task.txt
 
 # FVM Version Cache
 .fvm/
+# Kotlin compiler daemon sessions
+android/.kotlin/
