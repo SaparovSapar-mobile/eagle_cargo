@@ -13,10 +13,8 @@ extension TranslateExtension on BuildContext {
     return read<TranslationProvider>().t(key);
   }
 
-  AppLanguage get currentLang => read<TranslationProvider>().currentLang;
-
-  /// get current language code: "tk", "ru", "en"
-  String get langCode => read<TranslationProvider>().currentLang.code;
+  /// current language code: "tk", "ru", "en" or one of the firm's own
+  String get langCode => read<TranslationProvider>().currentCode;
 
   TranslationProvider get translationProvider => read<TranslationProvider>();
 }
