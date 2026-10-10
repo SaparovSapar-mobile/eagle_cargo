@@ -31,6 +31,9 @@ class PackageModel {
   String? removerGuid;
   WarehouseModel? warehouse;
   Shipment? shipments;
+
+  /// Countries the shipment passes on its way; empty when the firm set none.
+  ShipmentRoute? route;
   List<Photos>? photos;
 
   PackageModel({
@@ -63,6 +66,7 @@ class PackageModel {
     this.removerGuid,
     this.warehouse,
     this.shipments,
+    this.route,
     this.photos,
   });
 
@@ -100,11 +104,104 @@ class PackageModel {
     shipments = json['shipments'] != null
         ? Shipment.fromJson(json['shipments'])
         : null;
+    route = json['route'] != null
+        ? ShipmentRoute.fromJson(json['route'])
+        : null;
     if (json['photos'] != null) {
       photos = <Photos>[];
       json['photos'].forEach((v) {
         photos!.add(Photos.fromJson(v));
       });
+    }
+  }
+}
+
+/// Countries a shipment passes on its way to Turkmenistan, set by the firm
+/// admin. Always rendered as served: the admin can move back to an earlier
+/// country to correct a mistake.
+class ShipmentRoute {
+  /// Country the shipment is in now; `null` before departure.
+  RouteCheckpoint? current;
+
+  /// All countries in route order — already sorted by `sequence`.
+  List<RouteCheckpoint> checkpoints;
+
+  ShipmentRoute({this.current, this.checkpoints = const []});
+
+  bool get isEmpty => checkpoints.isEmpty;
+
+  ShipmentRoute.fromJson(Map<String, dynamic> json)
+    : current = json['current'] != null
+          ? RouteCheckpoint.fromJson(json['current'])
+          : null,
+      checkpoints = (json['checkpoints'] as List? ?? [])
+          .map((e) => RouteCheckpoint.fromJson(e))
+          .toList();
+}
+
+class RouteCheckpoint {
+  String? locationGuid;
+  int? sequence;
+
+  /// Flag emoji; may be missing — [code] stands in for it then.
+  String? emoji;
+  String? code;
+
+  /// Turkmen name, used when [title] has nothing for the language.
+  String? name;
+  LocationTitle? title;
+
+  /// UTC. Can be `null` on a passed country the admin skipped.
+  String? arrivedDt;
+  bool isPassed;
+  bool isCurrent;
+
+  RouteCheckpoint({
+    this.locationGuid,
+    this.sequence,
+    this.emoji,
+    this.code,
+    this.name,
+    this.title,
+    this.arrivedDt,
+    this.isPassed = false,
+    this.isCurrent = false,
+  });
+
+  RouteCheckpoint.fromJson(Map<String, dynamic> json)
+    : locationGuid = json['location_guid'],
+      sequence = int.tryParse('${json['sequence']}'),
+      emoji = json['emoji'],
+      code = json['code'],
+      name = json['name'],
+      title = json['title'] != null
+          ? LocationTitle.fromJson(json['title'])
+          : null,
+      arrivedDt = json['arrived_dt'],
+      isPassed = json['is_passed'] == true,
+      isCurrent = json['is_current'] == true;
+
+  /// Flag, or the ISO code when the admin set no flag.
+  String get mark => emoji ?? code ?? '';
+
+  /// Same fallbacks as [FromLocation.getLocalizedTitle].
+  String localizedName(String langCode) {
+    final base = title?.base;
+    final fallback = name ?? code ?? '';
+    if (base == null) return fallback;
+    switch (langCode) {
+      case 'tk':
+        return base.titleTk ?? fallback;
+      case 'ru':
+        return base.titleRu ?? base.titleEn ?? fallback;
+      case 'en':
+        return base.titleEn ?? fallback;
+      case 'tr':
+        return base.titleTr ?? base.titleTk ?? fallback;
+      case 'uz':
+        return base.titleUz ?? base.titleTk ?? fallback;
+      default:
+        return fallback;
     }
   }
 }

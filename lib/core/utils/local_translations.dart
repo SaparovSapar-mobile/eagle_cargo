@@ -58,6 +58,16 @@ const Map<String, Map<String, String>> _localTranslations = {
     'ru': 'Повторить',
     'en': 'Retry',
   },
+  'mb_route': {
+    'tk': 'Ýükleniş ýoly',
+    'ru': 'Маршрут',
+    'en': 'Route',
+  },
+  'mb_now_here': {
+    'tk': 'Häzir şu ýerde',
+    'ru': 'Сейчас здесь',
+    'en': 'Now here',
+  },
 };
 
 /// Last link in the lookup chain, matching the translations contract.

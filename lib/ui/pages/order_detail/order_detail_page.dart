@@ -5,9 +5,11 @@ import 'package:eagle_cargo/core/api/models/package_model.dart';
 import 'package:eagle_cargo/core/api/providers/order_provider.dart';
 import 'package:kargoo_core/kargoo_core.dart'
     hide Palette, PreferenceManager, PreferenceKeys;
+import 'package:eagle_cargo/core/utils/local_translations.dart';
 import 'package:eagle_cargo/core/utils/utc_format_extenstion.dart';
 import 'package:eagle_cargo/ui/pages/order_detail/components/order_detail_card.dart';
 import 'package:eagle_cargo/ui/pages/order_detail/components/order_detail_chip.dart';
+import 'package:eagle_cargo/ui/pages/order_detail/components/order_detail_route.dart';
 import 'package:eagle_cargo/ui/pages/order_detail/components/order_detail_vertical_steps.dart';
 import 'package:eagle_cargo/ui/pages/order_detail/order_detail_view_model.dart';
 import 'package:eagle_cargo/ui/widgets/cached_image.dart';
@@ -98,6 +100,28 @@ class _OrderDetailPageState extends OrderDetailViewModel {
                           ),
                         ),
                         const SizedBox(height: 16),
+
+                        // ROUTE — countries on the way; absent for most
+                        // shipments, then the page looks as before.
+                        if (item?.route != null && !item!.route!.isEmpty) ...[
+                          OrderDetailCard(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  context.tl('mb_route'),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                OrderDetailRoute(route: item.route!),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
 
                         // DETAILS CARD
                         OrderDetailCard(
