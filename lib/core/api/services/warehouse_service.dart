@@ -7,20 +7,54 @@ import 'package:kargoo_core/kargoo_core.dart' hide Palette, PreferenceManager, P
 import '../models/payment_info_response.dart';
 
 class WarehouseService {
-  /// Warehouses of the firm, filtered by the `is_foreign` flag.
-  ///
-  /// The regular section asks for `false` and the foreign one for `true`, so
-  /// a warehouse never shows up in both.
-  ///
-  /// That list response is trimmed (guid, code, name, is_foreign, location),
-  /// so each entry is completed from the detail endpoint — the card needs the
-  /// address and phone to be of any use.
+  /// Warehouses of the firm, filtered by the `is_foreign` flag, so a
+  /// warehouse never shows up in both sections.
   static Future<Map<String, dynamic>> getAll({
     int limit = 20,
     int page = 1,
     required bool isForeign,
+  }) {
+    return isForeign
+        ? _getForeign(limit: limit, page: page)
+        : _getLocal(limit: limit, page: page);
+  }
+
+  /// Regular warehouses come from the legacy endpoint: unlike the core one it
+  /// returns the full record, coordinates included (on the nested location),
+  /// which the card needs for its "show on map" button.
+  static Future<Map<String, dynamic>> _getLocal({
+    required int limit,
+    required int page,
   }) async {
-    final parsed = await _getList(limit: limit, page: page, isForeign: isForeign);
+    final json = await BaseClient.get(
+      API.host,
+      API.warehouses.replaceAll('{firmGuid}', API.firmGuid),
+      headers: API.headers,
+      query: {
+        "limit": "$limit",
+        "page": "$page",
+        "status": 'true',
+        "is_foreign": 'false',
+      },
+    );
+    final parsed = _parseList(json);
+    // In case the legacy endpoint ignores `is_foreign`: foreign warehouses
+    // have their own section. The total shrinks too, or paging never ends.
+    final items = parsed['data'] as List<WarehouseModel>;
+    final before = items.length;
+    items.removeWhere((e) => e.isForeign);
+    parsed['count'] = (parsed['count'] as int) - (before - items.length);
+    return parsed;
+  }
+
+  /// That list response is trimmed (guid, code, name, is_foreign, location),
+  /// so each entry is completed from the detail endpoint — the card needs the
+  /// address and phone to be of any use.
+  static Future<Map<String, dynamic>> _getForeign({
+    required int limit,
+    required int page,
+  }) async {
+    final parsed = await _getList(limit: limit, page: page, isForeign: true);
     final items = parsed['data'] as List<WarehouseModel>;
     await Future.wait(items.map(_fillFromDetail));
     return parsed;
